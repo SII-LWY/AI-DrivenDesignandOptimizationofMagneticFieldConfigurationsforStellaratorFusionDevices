@@ -1,0 +1,46 @@
+[
+  {
+    "index": 0,
+    "success": true,
+    "feasibility": 0.00904906347944845,
+    "metrics": {
+      "aspect_ratio": 10.050345648349444,
+      "edge_rotational_transform_over_n_field_periods": 0.2541754539504288,
+      "qi": 9.206644854324794e-05,
+      "edge_magnetic_mirror_ratio": 0.20133081422967286,
+      "max_elongation": 5.045245317397242,
+      "minimum_normalized_magnetic_gradient_scale_length": 12.567844028129015
+    },
+    "signed_violations": [
+      0.005034564834944355,
+      -0.016701815801715147,
+      -0.008974652351094514,
+      0.006654071148364249,
+      0.00904906347944845
+    ],
+    "error": null,
+    "elapsed": 88.2685809135437
+  },
+  {
+    "index": 1,
+    "success": true,
+    "feasibility": 0.00904906347944845,
+    "metrics": {
+      "aspect_ratio": 10.050345648349444,
+      "edge_rotational_transform_over_n_field_periods": 0.2541754539504288,
+      "qi": 9.206644854324794e-05,
+      "edge_magnetic_mirror_ratio": 0.20133081422967286,
+      "max_elongation": 5.045245317397242,
+      "minimum_normalized_magnetic_gradient_scale_length": 12.567844028129015
+    },
+    "signed_violations": [
+      0.005034564834944355,
+      -0.016701815801715147,
+      -0.008974652351094514,
+      0.006654071148364249,
+      0.00904906347944845
+    ],
+    "error": null,
+    "elapsed": 88.4261884689331
+  }
+]
