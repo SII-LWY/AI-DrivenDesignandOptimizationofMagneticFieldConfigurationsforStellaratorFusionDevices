@@ -31,7 +31,8 @@ elongation 受控、镜比合理）的边界。我们把它做成一个协作工
 - **问题**：在 stellarator 对称、给定 `n_field_periods` 的约束下，搜索一组傅里叶
   系数 `r_cos` / `z_sin`，使得 VMEC 平衡满足下面 5 条约束，并尽量降低 aspect ratio。
 - **评估对象**：`constellaration.problems.SimpleToBuildQIStellarator`（即
-  problem2），feasibility ≤ 0 视为可行，越小越好。
+  problem2），feasibility 非负；`feasibility ≤ 1e-2` 视为可行（cons 内置 1%
+  容差），越接近 0 越好。
 - **约束**（problem2 不评估 MHD 稳定性，那是 problem3 的事）：
   - `aspect_ratio` ≤ 上限
   - `edge_rotational_transform / n_field_periods` ≥ 下限
@@ -143,7 +144,8 @@ python vmec_eval.py --boundaries ./submission.jsonl --out result.json --parallel
 你 `submission.jsonl` 里的同一行（`index` 字段对齐），包含：
 
 - `success`：VMEC 是否收敛、几何是否合法
-- `feasibility`：problem 2 的 feasibility 分数（≤ 0 视为可行，越小越好；这就是榜单分的核心）
+- `feasibility`：problem 2 的 feasibility 分数，非负；`feasibility ≤ 1e-2`
+  视为可行（cons 内置 1% 容差），越接近 0 越好。这就是榜单分的核心
 - `signed_violations`：5 条约束的归一化违背量（> 0 表违反，≤ 0 表满足，方便定位是哪条约束没过）
 - `metrics`：`aspect_ratio` / `edge_rotational_transform_over_n_field_periods` / `qi` /
   `edge_magnetic_mirror_ratio` / `max_elongation` / `minimum_normalized_magnetic_gradient_scale_length`
@@ -209,19 +211,18 @@ results = evaluate_boundaries(boundary_json_list, parallel=True, workers=16)
 ## 参考 Baseline
 
 ConStellaration 官方仓库 [proximafusion/constellaration](https://github.com/proximafusion/constellaration)
-在 `optimization_examples/` 下提供了两份针对 problem 2 (`SimpleToBuildQIStellarator`)
+在 `optimization_examples/` 下提供了一份针对 problem 2 (`SimpleToBuildQIStellarator`)
 的端到端求解脚本，可以直接当作对照基线：
 
-| 脚本 | 思路 | 适合场景 |
-|---|---|---|
-| `launch_alm_simple_to_build_stellarator.py` | 增广拉格朗日 (ALM) 外环 + Nevergrad 黑箱内环，默认 48 worker 并行评估 | 多核机器、全局搜索、强约束 |
-| `launch_scipy_minimize_simple_to_build_stellarator.py` | `scipy.optimize.minimize`（默认 `COBYQA`）做带约束局部精修 | 单机 / debug / 想要快速参考曲线 |
+- **`launch_alm_simple_to_build_stellarator.py`** —— 增广拉格朗日 (ALM) 外环
+  + Nevergrad 黑箱内环，默认 48 worker 并行评估，适合多核机器、全局搜索、
+  强约束场景。
 
-两份脚本都从 NAE 解析初值出发，在 `mpol = ntor = 4` 的傅里叶子空间里搜索；目标
+脚本从 NAE 解析初值出发，在 `mpol = ntor = 4` 的傅里叶子空间里搜索；目标
 是最小化 `aspect_ratio`，约束就是 problem 2 的 5 条；VMEC 默认走 `low_fidelity`
 省时间。
 
-把这两份脚本跑完得到的最终边界转成本仓库 `submission.jsonl` 的格式，再用
+把脚本跑完得到的最终边界转成本仓库 `submission.jsonl` 的格式，再用
 `vmec_eval.py` 在 high-fidelity 下复评，就能与你的 AI 方法做横向对比。
 
 ### 进阶：DESC —— JAX 写的可微 VMEC 求解器
@@ -260,8 +261,8 @@ MHD 力平衡方程（固定边界），但实现路径完全不同，由此带�
 2. 按 [提交格式](#提交格式--submissionjsonl) 写到 `submission.jsonl`
    （多人多 tag 可以共存）。
 3. 跑 `vmec_eval.py` 拿到 feasibility 与 metrics（强烈建议开并行）。
-4. 挑出 feasibility 最低的几条，回到第 1 步迭代下一轮；觉得稳了就上传到学院
-   平台参与排行。
+4. 挑出 `feasibility ≤ 1e-2` 且最接近 0 的几条，回到第 1 步迭代下一轮；觉得
+   稳了就上传到学院平台参与排行。
 
 第 1 步是最有发挥空间的环节。下面只是起点参考，欢迎尝试任意方法：
 
@@ -313,10 +314,10 @@ ConStellaration 官方 benchmark 上已经有不少团队公开的先进解，�
 榜单得分越高。
 
 > 🚨 **不满足约束直接 0 分**。这是 ConStellaration 评分的硬规则：只要 5 条约束
-> 中任何一条没过（即 feasibility > 0），`score` 直接判 0，不会再看 objective
-> 多漂亮。所以提交前**一定要先在本地用 `vmec_eval.py` 自评一遍**，确认所有
-> `signed_violations` 都 ≤ 0、`feasibility` ≤ 0 再上传，**不要把不可行的边界
-> 浪费在每天 3 次的提交配额上**。
+> 中任何一条违背超过 1% 容差（即 `feasibility > 1e-2`），`score` 直接判 0，
+> 不会再看 objective 多漂亮。所以提交前**一定要先在本地用 `vmec_eval.py` 自评
+> 一遍**，确认 `feasibility ≤ 1e-2` 再上传，**不要把不可行的边界浪费在每天 3
+> 次的提交配额上**。
 
 ### 二、代码质量分（人工 / 助教评审）
 
