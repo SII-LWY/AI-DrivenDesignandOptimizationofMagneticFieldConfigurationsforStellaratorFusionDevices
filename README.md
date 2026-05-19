@@ -1,3 +1,21 @@
+# 重要补丁
+
+现在加入新的两档简易难度，方便大家的分数能够有区分度
+
+- `level = 1`，还是原本的任务
+
+- `level = 2`，舍弃了对qi的约束要求
+
+- `level = 3`，舍弃了所有约束要求
+
+```sh
+python vmec_eval.py --boundaries ./submission.jsonl --out result.json --parallel --workers 16 --level 3
+```
+
+返回的json文件中可以找*score字段查看自己的评分
+
+**注：不强制针对后两个简单任务进行优化**
+
 # AI-Driven Design and Optimization of Magnetic Field Configurations for Stellarator Fusion Devices
 
 ![logo](logo.png)

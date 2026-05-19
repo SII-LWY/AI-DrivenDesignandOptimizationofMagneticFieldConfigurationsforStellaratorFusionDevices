@@ -29,7 +29,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any
 
 
-def _eval_one(args: tuple[int, str]) -> dict[str, Any]:
+# def _eval_one(args: tuple[int, str]) -> dict[str, Any]:
+def _eval_one(args: tuple[int, str], level: int = 1) -> dict[str, Any]:
     """评估单个边界。返回结构化结果 dict,绝不抛异常(失败信息塞进 error 字段)。
 
     设计为顶层函数,这样在 ProcessPoolExecutor 下能被 pickle 传给子进程。
@@ -59,6 +60,11 @@ def _eval_one(args: tuple[int, str]) -> dict[str, Any]:
         # high-fidelity 设置:跑真正的 VMEC,精度足够喂给 problem2 评分
         setting = forward_model.ConstellarationSettings.default_high_fidelity()
         m, _ = forward_model.forward_model(boundary=boundary, settings=setting)
+        
+        if level == 2:
+            setattr(m, "qi", 1e-5)
+            
+            
 
         # ===== problem2:Simple-to-Build Quasi-Isodynamic Stellarator =====
         # 只看几何 / QI 残差 / 镜比 / 伸长率,不评估 MHD 稳定性
@@ -94,6 +100,10 @@ def _eval_one(args: tuple[int, str]) -> dict[str, Any]:
         out["error"] = f"{type(exc).__name__}: {exc}"
 
     out["elapsed"] = time.time() - t0
+    if level == 3:
+        out["easy_score"] = float(getattr(m, "minimum_normalized_magnetic_gradient_scale_length", None))/20
+    else:
+        out["score"] = float(getattr(m, "minimum_normalized_magnetic_gradient_scale_length", None))/20
     return out
 
 
@@ -102,6 +112,7 @@ def evaluate_boundaries(
     *,
     parallel: bool = True,
     workers: int = 16,
+    level: int = 1,
 ) -> list[dict[str, Any]]:
     """对一批边界 JSON 做 VMEC + problem2 评估。
 
@@ -139,7 +150,8 @@ def evaluate_boundaries(
     if parallel and n > 1:
         # 多进程:适合一次评估 popsize 个候选(CMA-ES / 进化算法批量打分场景)
         with ProcessPoolExecutor(max_workers=workers) as ex:
-            futs = [ex.submit(_eval_one, t) for t in tasks]
+            futs = [ex.submit(_eval_one, t, level) for t in tasks]
+            # level
             for fut in as_completed(futs):
                 r = fut.result()
                 results[r["index"]] = r
@@ -147,7 +159,7 @@ def evaluate_boundaries(
     else:
         # 串行:零并发开销,debug 时栈帧清晰,失败也能直接看到 traceback(去掉 try 即可)
         for t in tasks:
-            r = _eval_one(t)
+            r = _eval_one(t,1)
             results[r["index"]] = r
             _log(r)
 
@@ -167,6 +179,8 @@ if __name__ == "__main__":
                     help="启用多进程并行评估(默认串行)")
     ap.add_argument("--workers", type=int, default=16,
                     help="并行模式下的进程数")
+    ap.add_argument("--level", type=int, default=1,
+                    help="难度：1->3")
     args = ap.parse_args()
 
     # 解析 submission.jsonl / submission2.jsonl 这种格式:
@@ -205,7 +219,8 @@ if __name__ == "__main__":
     t0 = time.time()
     res = evaluate_boundaries(boundaries,
                               parallel=args.parallel,
-                              workers=args.workers)
+                              workers=args.workers,
+                              level=args.level)
     dt = time.time() - t0
 
     # 简要统计输出,真正的明细写到 --out
